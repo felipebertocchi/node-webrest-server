@@ -1,11 +1,6 @@
 import { Request, Response } from 'express';
-
-const todos = [
-  { id: 1, text: 'Buy milk', completedAt: new Date() },
-  { id: 2, text: 'Buy bread', completedAt: null },
-  { id: 3, text: 'Buy butter', completedAt: new Date() },
-];
-
+import { prisma } from '../../data/postgres';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 
 export class TodosController {
 
@@ -13,67 +8,81 @@ export class TodosController {
   constructor() { }
 
 
-  public getTodos = ( req: Request, res: Response ) => {
-    return res.json( todos );
+  public getTodos = (req: Request, res: Response) => {
+    prisma.todo.findMany()
+      .then(todos => res.json(todos))
+      .catch(err => {
+        if (err instanceof PrismaClientKnownRequestError) {
+          return res.status(500).json({ error: err.meta?.cause || err.message })
+        }
+        return res.status(500).json({ error: err.message });
+      });
   };
 
-  public getTodoById = ( req: Request, res: Response ) => {
+  public getTodoById = (req: Request, res: Response) => {
     const id = +req.params.id;
-    if ( isNaN( id ) ) return res.status( 400 ).json( { error: 'ID argument is not a number' } );
 
-    const todo = todos.find( todo => todo.id === id );
-
-    ( todo )
-      ? res.json( todo )
-      : res.status( 404 ).json( { error: `TODO with id ${ id } not found` } );
+    prisma.todo.findUnique({
+      where: { id: id }
+    }).then(todo => res.json(todo))
+      .catch(err => {
+        if (err instanceof PrismaClientKnownRequestError) {
+          return res.status(500).json({ error: err.meta?.cause || err.message })
+        }
+        return res.status(500).json({ error: err.message });
+      });
   };
 
-  public createTodo = ( req: Request, res: Response ) => {
+  public createTodo = (req: Request, res: Response) => {
     const { text } = req.body;
-    if ( !text ) return res.status( 400 ).json( { error: 'Text property is required' } );
-    const newTodo = {
-      id: todos.length + 1,
-      text: text,
-      completedAt: null
-    };
+    if (!text) return res.status(400).json({ error: 'Text property is required' });
 
-    todos.push( newTodo );
-
-    res.json( newTodo );
-
+    prisma.todo.create({
+      data: {
+        text: text
+      }
+    })
+      .then(todo => res.json(todo))
+      .catch(err => {
+        if (err instanceof PrismaClientKnownRequestError) {
+          return res.status(500).json({ error: err.meta?.cause || err.message })
+        }
+        return res.status(500).json({ error: err.message });
+      });
   };
 
-  public updateTodo = ( req: Request, res: Response ) => {
+  public updateTodo = (req: Request, res: Response) => {
     const id = +req.params.id;
-    if ( isNaN( id ) ) return res.status( 400 ).json( { error: 'ID argument is not a number' } );
-    
-    const todo = todos.find( todo => todo.id === id );
-    if ( !todo ) return res.status( 404 ).json( { error: `Todo with id ${ id } not found` } );
+    if (isNaN(id)) return res.status(400).json({ error: 'ID argument is not a number' });
 
     const { text, completedAt } = req.body;
-    
-    todo.text = text || todo.text;
-    ( completedAt === 'null' )
-      ? todo.completedAt = null
-      : todo.completedAt = new Date( completedAt || todo.completedAt );
-    
 
-    res.json( todo );
-
+    prisma.todo.update({
+      where: { id: id },
+      data: { text, completedAt: completedAt ? new Date(completedAt) : null }
+    })
+      .then(todo => res.json(todo))
+      .catch(err => {
+        if (err instanceof PrismaClientKnownRequestError) {
+          return res.status(500).json({ error: err.meta?.cause || err.message })
+        }
+        return res.status(500).json({ error: err.message });
+      });
   }
 
 
-  public deleteTodo = (req:Request, res: Response) => {
+  public deleteTodo = (req: Request, res: Response) => {
     const id = +req.params.id;
 
-    const todo = todos.find(todo => todo.id === id );
-    if ( !todo ) return res.status(404).json({ error: `Todo with id ${ id } not found` });
-
-    todos.splice( todos.indexOf(todo), 1 );
-    res.json( todo );
-
+    prisma.todo.delete({
+      where: { id: id }
+    })
+      .then(() => res.status(202).json({ message: "ToDo succesfully deleted" }))
+      .catch(err => {
+        if (err instanceof PrismaClientKnownRequestError) {
+          return res.status(500).json({ error: err.meta?.cause || err.message })
+        }
+        return res.status(500).json({ error: err.message });
+      });
   }
-  
-
-
 }
