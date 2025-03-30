@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { prisma } from '../../data/postgres';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
+import { CreateTodoDto, UpdateTodoDto } from '../../domain/DTOs';
 
 export class TodosController {
 
@@ -34,13 +35,13 @@ export class TodosController {
   };
 
   public createTodo = (req: Request, res: Response) => {
-    const { text } = req.body;
-    if (!text) return res.status(400).json({ error: 'Text property is required' });
+    const [error, createTodoDto] = CreateTodoDto.create(req.body);
+    if (error || !createTodoDto) {
+      return res.status(400).json({ error });
+    }
 
     prisma.todo.create({
-      data: {
-        text: text
-      }
+      data: createTodoDto
     })
       .then(todo => res.json(todo))
       .catch(err => {
@@ -53,13 +54,14 @@ export class TodosController {
 
   public updateTodo = (req: Request, res: Response) => {
     const id = +req.params.id;
-    if (isNaN(id)) return res.status(400).json({ error: 'ID argument is not a number' });
-
-    const { text, completedAt } = req.body;
+    const [error, updateTodoDto] = UpdateTodoDto.create({ ...req.body, id });
+    if (error || !updateTodoDto) {
+      return res.status(400).json({ error });
+    }
 
     prisma.todo.update({
       where: { id: id },
-      data: { text, completedAt: completedAt ? new Date(completedAt) : null }
+      data: updateTodoDto.values
     })
       .then(todo => res.json(todo))
       .catch(err => {
